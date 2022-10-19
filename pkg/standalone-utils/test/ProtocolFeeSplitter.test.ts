@@ -50,7 +50,7 @@ describe('ProtocolFeeSplitter', function () {
   });
 
   sharedBeforeEach('deploy tokens, pools & gives initial liquidity', async () => {
-    factory = await deploy('v2-pool-weighted/WeightedPoolFactory', { args: [vault.address] });
+    factory = await deploy('v2-pool-weighted/WeightedPoolFactory', { args: [vault.address, vault.getFeesProvider().address] });
     assetManagers = Array(tokens.length).fill(ZERO_ADDRESS);
     pool = await createPool(poolOwner.address);
     poolId = await pool.getPoolId();
