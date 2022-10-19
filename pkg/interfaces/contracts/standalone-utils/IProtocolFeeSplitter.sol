@@ -34,6 +34,7 @@ interface IProtocolFeeSplitter {
     event PoolRevenueShareChanged(bytes32 indexed poolId, uint256 revenueSharePercentage);
     event PoolBeneficiaryChanged(bytes32 indexed poolId, address newBeneficiary);
     event DefaultRevenueSharingFeePercentageChanged(uint256 revenueSharePercentage);
+    event TreasuryChanged(address newTreasury);
 
     /**
      * @notice Allows a authorized user to change revenueShare for a `poolId`
@@ -48,6 +49,12 @@ interface IProtocolFeeSplitter {
      * @param newBeneficiary - beneficiary address
      */
     function setPoolBeneficiary(bytes32 poolId, address newBeneficiary) external;
+
+    /**
+     * @notice Allows a authorized user to change the treasury address
+     * @param newTreasury - beneficiary address
+     */
+    function setTreasury(address newTreasury) external;
 
     /**
      * @notice Allows a authorized user to change the default revenue sharing fee percentage
