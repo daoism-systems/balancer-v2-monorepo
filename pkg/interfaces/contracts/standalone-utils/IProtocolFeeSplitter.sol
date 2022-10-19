@@ -42,7 +42,7 @@ interface IProtocolFeeSplitter {
      * @param newSwapFeePercentage - new swap fee percentage
      */
     function setRevenueSharingFeePercentage(bytes32 poolId, uint256 newSwapFeePercentage) external;
-    
+
     /**
      * @notice Allows a pool owner to change the pool beneficiary settings
      * @param poolId - the poolId of the pool where we want to change fee beneficiary
