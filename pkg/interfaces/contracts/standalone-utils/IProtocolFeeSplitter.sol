@@ -86,22 +86,22 @@ interface IProtocolFeeSplitter {
     function getAmounts(bytes32 poolId) external view returns (uint256 beneficiaryAmount, uint256 treasuryAmount);
 
     /**
-     * @notice Returns Balancer's treasury address
+     * @notice Returns Balancer's treasury address.
      */
     function getTreasury() external view returns (address);
 
     /**
-     * @notice Returns Protocol Fees Withdrawer
+     * @notice Returns the Protocol Fees Withdrawer address.
      */
     function getProtocolFeesWithdrawer() external view returns (IProtocolFeesWithdrawer);
 
     /**
-     * @notice Returns Balancer's vault address
+     * @notice Returns Balancer's vault address.
      */
     function getVault() external view returns (IVault);
 
     /**
-     * @notice Returns Balancer's vault address
+     * @notice Returns a Pool's settings.
      */
     function getPoolSettings(bytes32 poolId)
         external
