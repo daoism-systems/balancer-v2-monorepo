@@ -13,7 +13,6 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 pragma solidity >=0.7.0 <0.9.0;
-pragma experimental ABIEncoderV2;
 
 import "@balancer-labs/v2-interfaces/contracts/vault/IVault.sol";
 import "@balancer-labs/v2-interfaces/contracts/standalone-utils/IProtocolFeesWithdrawer.sol";
@@ -26,13 +25,6 @@ import "@balancer-labs/v2-interfaces/contracts/standalone-utils/IProtocolFeesWit
  * otherwise all BPT tokens go to Balancer's DAO treasury
  */
 interface IProtocolFeeSplitter {
-    // Packed to use 1 storage slot
-    // 1e18 (100% - maximum fee value) can fit in uint96
-    struct RevenueShareSettings {
-        uint96 revenueSharePercentageOverride;
-        address beneficiary;
-    }
-
     event FeesCollected(
         bytes32 indexed poolId,
         address indexed beneficiary,
@@ -111,5 +103,7 @@ interface IProtocolFeeSplitter {
     /**
      * @notice Returns Balancer's vault address
      */
-    function getPoolSettings(bytes32 poolId) external returns (RevenueShareSettings memory);
+    function getPoolSettings(bytes32 poolId)
+        external
+        returns (uint256 revenueSharePercentageOverride, address beneficiary);
 }

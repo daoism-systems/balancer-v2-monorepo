@@ -13,7 +13,6 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 pragma solidity >=0.7.0 <0.9.0;
-pragma experimental ABIEncoderV2;
 
 import "@balancer-labs/v2-interfaces/contracts/standalone-utils/IProtocolFeeSplitter.sol";
 import "@balancer-labs/v2-interfaces/contracts/standalone-utils/IProtocolFeesWithdrawer.sol";
@@ -48,6 +47,13 @@ contract ProtocolFeeSplitter is IProtocolFeeSplitter, Authentication {
 
     // Can be updated by BAL governance (1e18 = 100%, 1e16 = 1%).
     uint256 private _defaultRevenueSharingFeePercentage;
+
+    // Packed to use 1 storage slot
+    // 1e18 (100% - maximum fee value) can fit in uint96
+    struct RevenueShareSettings {
+        uint96 revenueSharePercentageOverride;
+        address beneficiary;
+    }
 
     // poolId => PoolSettings
     mapping(bytes32 => RevenueShareSettings) private _poolSettings;
@@ -133,8 +139,15 @@ contract ProtocolFeeSplitter is IProtocolFeeSplitter, Authentication {
         return _treasury;
     }
 
-    function getPoolSettings(bytes32 poolId) external view override returns (RevenueShareSettings memory) {
-        return _poolSettings[poolId];
+    function getPoolSettings(bytes32 poolId)
+        external
+        view
+        override
+        returns (uint256 revenueSharePercentageOverride, address beneficiary)
+    {
+        RevenueShareSettings memory settings = _poolSettings[poolId];
+
+        return (settings.revenueSharePercentageOverride, settings.beneficiary);
     }
 
     function _canPerform(bytes32 actionId, address account) internal view override returns (bool) {
