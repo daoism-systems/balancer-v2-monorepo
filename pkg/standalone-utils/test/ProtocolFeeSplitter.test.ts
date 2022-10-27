@@ -32,13 +32,13 @@ describe('ProtocolFeeSplitter', function () {
     treasury: SignerWithAddress,
     newTreasury: SignerWithAddress,
     liquidityProvider: SignerWithAddress,
-    randomSigner: SignerWithAddress;
+    other: SignerWithAddress;
   let assetManagers: string[];
   let tokens: TokenList;
   let poolId: string;
 
   before(async () => {
-    [, admin, poolOwner, liquidityProvider, treasury, newTreasury, randomSigner] = await ethers.getSigners();
+    [, admin, poolOwner, liquidityProvider, treasury, newTreasury, other] = await ethers.getSigners();
   });
 
   sharedBeforeEach('deploy vault, protocol fees collector & tokens', async () => {
@@ -136,7 +136,7 @@ describe('ProtocolFeeSplitter', function () {
     });
 
     it('reverts if caller is unauthorized', async () => {
-      await expect(protocolFeeSplitter.connect(randomSigner).setTreasury(newTreasury.address)).to.be.revertedWith(
+      await expect(protocolFeeSplitter.connect(other).setTreasury(newTreasury.address)).to.be.revertedWith(
         'SENDER_NOT_ALLOWED'
       );
     });
@@ -182,7 +182,7 @@ describe('ProtocolFeeSplitter', function () {
     it('reverts if caller is not authorized', async () => {
       const newFee = bn(10e16); // 10%
       await expect(
-        protocolFeeSplitter.connect(randomSigner).setRevenueSharingFeePercentage(poolId, newFee)
+        protocolFeeSplitter.connect(other).setRevenueSharingFeePercentage(poolId, newFee)
       ).to.be.revertedWith('SENDER_NOT_ALLOWED');
     });
   });
@@ -196,14 +196,14 @@ describe('ProtocolFeeSplitter', function () {
 
     it('sets pool beneficiary', async () => {
       const receipt = await (
-        await protocolFeeSplitter.connect(poolOwner).setPoolBeneficiary(poolId, randomSigner.address)
+        await protocolFeeSplitter.connect(poolOwner).setPoolBeneficiary(poolId, other.address)
       ).wait();
       expectEvent.inReceipt(receipt, 'PoolBeneficiaryChanged', {
         poolId: poolId,
-        newBeneficiary: randomSigner.address,
+        newBeneficiary: other.address,
       });
       const poolSettings = await protocolFeeSplitter.getPoolSettings(poolId);
-      expect(poolSettings.beneficiary).to.be.eq(randomSigner.address);
+      expect(poolSettings.beneficiary).to.be.eq(other.address);
     });
   });
 
