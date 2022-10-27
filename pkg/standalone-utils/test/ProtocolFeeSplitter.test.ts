@@ -203,7 +203,9 @@ describe('ProtocolFeeSplitter', function () {
     sharedBeforeEach('transfers BPT to fees collector', async () => {
       // transfer BPT tokens to feesCollector
       bptBalanceOfLiquidityProvider = await pool.balanceOf(liquidityProvider.address);
-      await pool.instance.transfer((await vault.getFeesCollector()).address, bptBalanceOfLiquidityProvider);
+      await pool.instance
+        .connect(liquidityProvider)
+        .transfer((await vault.getFeesCollector()).address, bptBalanceOfLiquidityProvider);
     });
 
     describe('collect fees', async () => {
