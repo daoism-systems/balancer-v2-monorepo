@@ -1,19 +1,19 @@
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
-import { Contract } from 'ethers';
+import { BigNumber, Contract } from 'ethers';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signer-with-address';
 import TokenList from '@balancer-labs/v2-helpers/src/models/tokens/TokenList';
-import { deploy, deployedAt } from '@balancer-labs/v2-helpers/src/contract';
+import { deploy } from '@balancer-labs/v2-helpers/src/contract';
 import { actionId } from '@balancer-labs/v2-helpers/src/models/misc/actions';
 import Vault from '@balancer-labs/v2-helpers/src/models/vault/Vault';
 import * as expectEvent from '@balancer-labs/v2-helpers/src/test/expectEvent';
 import { toNormalizedWeights } from '@balancer-labs/balancer-js/src';
 import { fp } from '@balancer-labs/v2-helpers/src/numbers';
-import { ZERO_ADDRESS } from '@balancer-labs/v2-helpers/src/constants';
 import { bn } from '../../../pvt/helpers/src/numbers';
-import { JoinPoolRequest, WeightedPoolEncoder } from '@balancer-labs/balancer-js';
+import { WeightedPoolEncoder } from '@balancer-labs/balancer-js';
 import { expectEqualWithError } from '@balancer-labs/v2-helpers/src/test/relativeError';
 import { sharedBeforeEach } from '@balancer-labs/v2-common/sharedBeforeEach';
+import WeightedPool from '@balancer-labs/v2-helpers/src/models/pools/weighted/WeightedPool';
 
 const NAME = 'Balancer Pool Token';
 const SYMBOL = 'BPT';
@@ -22,54 +22,48 @@ const WEIGHTS = toNormalizedWeights([fp(30), fp(70), fp(5), fp(5)]);
 
 describe('ProtocolFeeSplitter', function () {
   let vault: Vault;
-  let factory: Contract;
-  let protocolFeesCollector: Contract;
+
   let protocolFeeSplitter: Contract;
   let protocolFeesWithdrawer: Contract;
-  let pool: Contract;
+
   let admin: SignerWithAddress,
-    poolOwner: SignerWithAddress,
+    owner: SignerWithAddress,
     treasury: SignerWithAddress,
     newTreasury: SignerWithAddress,
     liquidityProvider: SignerWithAddress,
     other: SignerWithAddress;
-  let assetManagers: string[];
+
   let tokens: TokenList;
+
+  let pool: WeightedPool;
   let poolId: string;
 
   before(async () => {
-    [, admin, poolOwner, liquidityProvider, treasury, newTreasury, other] = await ethers.getSigners();
+    [, admin, owner, liquidityProvider, treasury, newTreasury, other] = await ethers.getSigners();
   });
 
   sharedBeforeEach('deploy vault, protocol fees collector & tokens', async () => {
     vault = await Vault.create({ admin });
-    protocolFeesCollector = await vault.getFeesCollector();
     tokens = await TokenList.create(['DAI', 'MKR', 'SNX', 'BAT'], { sorted: true });
 
     await tokens.mint({ to: liquidityProvider, amount: fp(100000) });
     await tokens.approve({ from: liquidityProvider, to: vault });
   });
 
-  sharedBeforeEach('deploy tokens, pools & gives initial liquidity', async () => {
-    factory = await deploy('v2-pool-weighted/WeightedPoolFactory', {
-      args: [vault.address, vault.getFeesProvider().address],
-    });
-    assetManagers = Array(tokens.length).fill(ZERO_ADDRESS);
-    pool = await createPool(poolOwner.address);
+  sharedBeforeEach('create and initialize pools', async () => {
+    pool = await WeightedPool.create({ vault, tokens, owner });
     poolId = await pool.getPoolId();
 
     const initialBalances = Array(tokens.length).fill(fp(1000));
 
-    const request: JoinPoolRequest = {
-      assets: tokens.addresses,
-      maxAmountsIn: initialBalances,
-      userData: WeightedPoolEncoder.joinInit(initialBalances),
-      fromInternalBalance: false,
-    };
-
     await vault.instance
       .connect(liquidityProvider)
-      .joinPool(poolId, liquidityProvider.address, liquidityProvider.address, request);
+      .joinPool(poolId, liquidityProvider.address, liquidityProvider.address, {
+        assets: tokens.addresses,
+        maxAmountsIn: initialBalances,
+        userData: WeightedPoolEncoder.joinInit(initialBalances),
+        fromInternalBalance: false,
+      });
   });
 
   sharedBeforeEach('deploy ProtocolFeeSplitter, ProtocolFeesWithdrawer & grant permissions', async () => {
@@ -91,7 +85,7 @@ describe('ProtocolFeeSplitter', function () {
     await vault.grantPermissionsGlobally([setDefaultRevenueSharingFeePercentageRole], admin);
 
     // Allow withdrawer to pull from collector
-    const withdrawCollectedFeesRole = await actionId(protocolFeesCollector, 'withdrawCollectedFees');
+    const withdrawCollectedFeesRole = await actionId(await vault.getFeesCollector(), 'withdrawCollectedFees');
     await vault.grantPermissionsGlobally([withdrawCollectedFeesRole], protocolFeesWithdrawer);
 
     // Allow fee splitter to pull from withdrawer
@@ -101,23 +95,6 @@ describe('ProtocolFeeSplitter', function () {
     const setTreasuryRole = await actionId(protocolFeeSplitter, 'setTreasury');
     await vault.grantPermissionsGlobally([setTreasuryRole], admin);
   });
-
-  async function createPool(poolOwnerAddress: string): Promise<Contract> {
-    const receipt = await (
-      await factory.create(
-        NAME,
-        SYMBOL,
-        tokens.addresses,
-        WEIGHTS,
-        assetManagers,
-        POOL_SWAP_FEE_PERCENTAGE,
-        poolOwnerAddress
-      )
-    ).wait();
-
-    const event = expectEvent.inReceipt(receipt, 'PoolCreated');
-    return deployedAt('v2-pool-weighted/WeightedPool', event.args.pool);
-  }
 
   describe('constructor', () => {
     it('sets the protocolFeesWithdrawer', async () => {
@@ -195,9 +172,7 @@ describe('ProtocolFeeSplitter', function () {
     });
 
     it('sets pool beneficiary', async () => {
-      const receipt = await (
-        await protocolFeeSplitter.connect(poolOwner).setPoolBeneficiary(poolId, other.address)
-      ).wait();
+      const receipt = await (await protocolFeeSplitter.connect(owner).setPoolBeneficiary(poolId, other.address)).wait();
       expectEvent.inReceipt(receipt, 'PoolBeneficiaryChanged', {
         poolId: poolId,
         newBeneficiary: other.address,
@@ -208,12 +183,12 @@ describe('ProtocolFeeSplitter', function () {
   });
 
   context('when the fee collector holds BPT', async () => {
-    let bptBalanceOfLiquidityProvider: number;
+    let bptBalanceOfLiquidityProvider: BigNumber;
 
     sharedBeforeEach('transfers BPT to fees collector', async () => {
       // transfer BPT tokens to feesCollector
       bptBalanceOfLiquidityProvider = await pool.balanceOf(liquidityProvider.address);
-      await pool.connect(liquidityProvider).transfer(protocolFeesCollector.address, bptBalanceOfLiquidityProvider);
+      await pool.instance.transfer((await vault.getFeesCollector()).address, bptBalanceOfLiquidityProvider);
     });
 
     describe('collect fees', async () => {
@@ -227,7 +202,7 @@ describe('ProtocolFeeSplitter', function () {
 
     context('fee percentage defined', async () => {
       sharedBeforeEach('sets pool beneficiary & fee percentage', async () => {
-        await protocolFeeSplitter.connect(poolOwner).setPoolBeneficiary(poolId, poolOwner.address);
+        await protocolFeeSplitter.connect(owner).setPoolBeneficiary(poolId, owner.address);
 
         await protocolFeeSplitter.connect(admin).setRevenueSharingFeePercentage(poolId, bn(10e16)); // 10%
       });
@@ -237,11 +212,11 @@ describe('ProtocolFeeSplitter', function () {
           const amounts = await protocolFeeSplitter.getAmounts(poolId);
 
           // 10% of bptBalanceOfLiquidityProvider should go to owner
-          const poolOwnerExpectedBalance = bptBalanceOfLiquidityProvider.mul(bn(10e16)).div(bn(1e18));
+          const ownerExpectedBalance = bptBalanceOfLiquidityProvider.mul(bn(10e16)).div(bn(1e18));
           // 90% goes to treasury
           const treasuryExpectedBalance = bptBalanceOfLiquidityProvider.mul(bn(90e16)).div(bn(1e18));
 
-          expectEqualWithError(amounts.beneficiaryAmount, poolOwnerExpectedBalance);
+          expectEqualWithError(amounts.beneficiaryAmount, ownerExpectedBalance);
           expectEqualWithError(amounts.treasuryAmount, treasuryExpectedBalance);
         });
       });
@@ -250,14 +225,14 @@ describe('ProtocolFeeSplitter', function () {
         await protocolFeeSplitter.collectFees(poolId);
 
         // 10% of bptBalanceOfLiquidityProvider should go to owner
-        const poolOwnerExpectedBalance = bptBalanceOfLiquidityProvider.mul(bn(10e16)).div(bn(1e18));
+        const ownerExpectedBalance = bptBalanceOfLiquidityProvider.mul(bn(10e16)).div(bn(1e18));
         // 90% goes to treasury
         const treasuryExpectedBalance = bptBalanceOfLiquidityProvider.mul(bn(90e16)).div(bn(1e18));
 
-        const poolOwnerBalance = await pool.balanceOf(poolOwner.address);
+        const ownerBalance = await pool.balanceOf(owner.address);
         const treasuryBalance = await pool.balanceOf(treasury.address);
 
-        expectEqualWithError(poolOwnerBalance, poolOwnerExpectedBalance);
+        expectEqualWithError(ownerBalance, ownerExpectedBalance);
         expectEqualWithError(treasuryBalance, treasuryExpectedBalance);
       });
     });
@@ -266,11 +241,11 @@ describe('ProtocolFeeSplitter', function () {
       it('distributes collected BPT fees to owner and treasury (fee percentage not defined)', async () => {
         await protocolFeeSplitter.collectFees(poolId);
 
-        const poolOwnerBalance = await pool.balanceOf(poolOwner.address);
+        const ownerBalance = await pool.balanceOf(owner.address);
         const treasuryBalance = await pool.balanceOf(treasury.address);
 
         // pool owner should get 0, and treasury everything if fee is not defined
-        expectEqualWithError(poolOwnerBalance, 0);
+        expectEqualWithError(ownerBalance, 0);
         expectEqualWithError(treasuryBalance, bptBalanceOfLiquidityProvider);
       });
     });
