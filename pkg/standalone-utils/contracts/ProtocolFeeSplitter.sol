@@ -182,6 +182,7 @@ contract ProtocolFeeSplitter is IProtocolFeeSplitter, Authentication {
         }
 
         address beneficiary = _poolSettings[poolId].beneficiary;
+
         if (beneficiary == address(0)) {
             // If there's no beneficiary, the full amount is sent to the treasury.
             return (0, feeCollectorBptBalance);
@@ -204,9 +205,9 @@ contract ProtocolFeeSplitter is IProtocolFeeSplitter, Authentication {
         uint256 poolFeeOverride = _poolSettings[poolId].revenueSharePercentageOverride;
         if (poolFeeOverride == 0) {
             // The 'zero' override is a sentinel value that stands for the default fee.
-            _defaultRevenueSharingFeePercentage;
+            return _defaultRevenueSharingFeePercentage;
         } else {
-            poolFeeOverride;
+            return poolFeeOverride;
         }
     }
 }

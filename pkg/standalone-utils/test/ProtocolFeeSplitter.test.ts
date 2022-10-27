@@ -7,7 +7,7 @@ import { deploy } from '@balancer-labs/v2-helpers/src/contract';
 import { actionId } from '@balancer-labs/v2-helpers/src/models/misc/actions';
 import Vault from '@balancer-labs/v2-helpers/src/models/vault/Vault';
 import * as expectEvent from '@balancer-labs/v2-helpers/src/test/expectEvent';
-import { fp } from '@balancer-labs/v2-helpers/src/numbers';
+import { fp, FP_ONE } from '@balancer-labs/v2-helpers/src/numbers';
 import { bn } from '../../../pvt/helpers/src/numbers';
 import { WeightedPoolEncoder } from '@balancer-labs/balancer-js';
 import { expectEqualWithError } from '@balancer-labs/v2-helpers/src/test/relativeError';
@@ -220,8 +220,7 @@ describe('ProtocolFeeSplitter', function () {
     context('fee percentage defined', async () => {
       sharedBeforeEach('sets pool beneficiary & fee percentage', async () => {
         await protocolFeeSplitter.connect(owner).setPoolBeneficiary(poolId, owner.address);
-
-        await protocolFeeSplitter.connect(admin).setRevenueSharingFeePercentage(poolId, bn(10e16)); // 10%
+        await protocolFeeSplitter.connect(admin).setRevenueSharingFeePercentage(poolId, fp(0.1));
       });
 
       describe('get amounts', async () => {
@@ -229,9 +228,9 @@ describe('ProtocolFeeSplitter', function () {
           const amounts = await protocolFeeSplitter.getAmounts(poolId);
 
           // 10% of bptBalanceOfLiquidityProvider should go to owner
-          const ownerExpectedBalance = bptBalanceOfLiquidityProvider.mul(bn(10e16)).div(bn(1e18));
-          // 90% goes to treasury
-          const treasuryExpectedBalance = bptBalanceOfLiquidityProvider.mul(bn(90e16)).div(bn(1e18));
+          const ownerExpectedBalance = bptBalanceOfLiquidityProvider.mul(fp(0.1)).div(FP_ONE);
+          // The rest goes to the treasury
+          const treasuryExpectedBalance = bptBalanceOfLiquidityProvider.sub(ownerExpectedBalance);
 
           expectEqualWithError(amounts.beneficiaryAmount, ownerExpectedBalance);
           expectEqualWithError(amounts.treasuryAmount, treasuryExpectedBalance);
@@ -242,9 +241,9 @@ describe('ProtocolFeeSplitter', function () {
         await protocolFeeSplitter.collectFees(poolId);
 
         // 10% of bptBalanceOfLiquidityProvider should go to owner
-        const ownerExpectedBalance = bptBalanceOfLiquidityProvider.mul(bn(10e16)).div(bn(1e18));
-        // 90% goes to treasury
-        const treasuryExpectedBalance = bptBalanceOfLiquidityProvider.mul(bn(90e16)).div(bn(1e18));
+        const ownerExpectedBalance = bptBalanceOfLiquidityProvider.mul(fp(0.1)).div(FP_ONE);
+        // The rest goes to the treasury
+        const treasuryExpectedBalance = bptBalanceOfLiquidityProvider.sub(ownerExpectedBalance);
 
         const ownerBalance = await pool.balanceOf(owner.address);
         const treasuryBalance = await pool.balanceOf(treasury.address);
