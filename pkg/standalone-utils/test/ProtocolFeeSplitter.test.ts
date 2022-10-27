@@ -7,18 +7,12 @@ import { deploy } from '@balancer-labs/v2-helpers/src/contract';
 import { actionId } from '@balancer-labs/v2-helpers/src/models/misc/actions';
 import Vault from '@balancer-labs/v2-helpers/src/models/vault/Vault';
 import * as expectEvent from '@balancer-labs/v2-helpers/src/test/expectEvent';
-import { toNormalizedWeights } from '@balancer-labs/balancer-js/src';
 import { fp } from '@balancer-labs/v2-helpers/src/numbers';
 import { bn } from '../../../pvt/helpers/src/numbers';
 import { WeightedPoolEncoder } from '@balancer-labs/balancer-js';
 import { expectEqualWithError } from '@balancer-labs/v2-helpers/src/test/relativeError';
 import { sharedBeforeEach } from '@balancer-labs/v2-common/sharedBeforeEach';
 import WeightedPool from '@balancer-labs/v2-helpers/src/models/pools/weighted/WeightedPool';
-
-const NAME = 'Balancer Pool Token';
-const SYMBOL = 'BPT';
-const POOL_SWAP_FEE_PERCENTAGE = fp(0.01);
-const WEIGHTS = toNormalizedWeights([fp(30), fp(70), fp(5), fp(5)]);
 
 describe('ProtocolFeeSplitter', function () {
   let vault: Vault;
